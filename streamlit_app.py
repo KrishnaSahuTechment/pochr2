@@ -1,249 +1,267 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score
-import altair as alt
+import os
+import json
+import streamlit as st
 import time
-import zipfile
+import sqlite3
+from datetime import date
 
-# Page title
-st.set_page_config(page_title='ML Model Building', page_icon='🤖')
-st.title('🤖 ML Model Building')
+from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain.memory.buffer import ConversationBufferMemory
 
-with st.expander('About this app'):
-  st.markdown('**What can this app do?**')
-  st.info('This app allow users to build a machine learning (ML) model in an end-to-end workflow. Particularly, this encompasses data upload, data pre-processing, ML model building and post-model analysis.')
+from langchain_community.llms import OCIGenAI
+from langchain_community.embeddings import OCIGenAIEmbeddings
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_community.vectorstores import FAISS
+from langchain_community.chat_message_histories import StreamlitChatMessageHistory
+from langchain_community.document_loaders import TextLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-  st.markdown('**How to use the app?**')
-  st.warning('To engage with the app, go to the sidebar and 1. Select a data set and 2. Adjust the model parameters by adjusting the various slider widgets. As a result, this would initiate the ML model building process, display the model results as well as allowing users to download the generated models and accompanying data.')
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
+import oci
 
-  st.markdown('**Under the hood**')
-  st.markdown('Data sets:')
-  st.code('''- Drug solubility data set
-  ''', language='markdown')
-  
-  st.markdown('Libraries used:')
-  st.code('''- Pandas for data wrangling
-- Scikit-learn for building a machine learning model
-- Altair for chart creation
-- Streamlit for user interface
-  ''', language='markdown')
+# Global Variables
+CONFIG_PROFILE = "DEFAULT"
+NAMESPACE = st.secrets["NAMESPACE"] 
+BUCKET_NAME = st.secrets["BUCKET_NAME"] 
+OBJECT_NAME = st.secrets["OBJECT_NAME"] 
+COMPARTMENT_ID = st.secrets["COMPARTMENT_ID"] 
+SESSION_ID = "abc123"
+DATABASE_NAME = "chat_history_table_session"
+
+# user="ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq"
+# fingerprint="e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd"
+# key_file="krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem"
+# tenancy="ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja"
+# region="us-chicago-1"
 
 
-# Sidebar for accepting input parameters
-with st.sidebar:
-    # Load data
-    st.header('1.1. Input data')
-
-    st.markdown('**1. Use custom data**')
-    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file, index_col=False)
-      
-    # Download example data
-    @st.cache_data
-    def convert_df(input_df):
-        return input_df.to_csv(index=False).encode('utf-8')
-    example_csv = pd.read_csv('https://raw.githubusercontent.com/dataprofessor/data/master/delaney_solubility_with_descriptors.csv')
-    csv = convert_df(example_csv)
-    st.download_button(
-        label="Download example CSV",
-        data=csv,
-        file_name='delaney_solubility_with_descriptors.csv',
-        mime='text/csv',
+def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
+    return OCIGenAI(
+        model_id="cohere.command",
+        service_endpoint="https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
+        compartment_id=COMPARTMENT_ID,
+        model_kwargs={"temperature": temperature, "top_p": top_p, "top_k": top_k, "max_tokens": max_tokens}        
     )
 
-    # Select example data
-    st.markdown('**1.2. Use example data**')
-    example_data = st.toggle('Load example data')
-    if example_data:
-        df = pd.read_csv('https://raw.githubusercontent.com/dataprofessor/data/master/delaney_solubility_with_descriptors.csv')
 
-    st.header('2. Set Parameters')
-    parameter_split_size = st.slider('Data split ratio (% for Training Set)', 10, 90, 80, 5)
+def initialize_object_storage_client():
+    # config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)   
+    config = {
+        "user":st.secrets["user"] ,
+        "fingerprint":st.secrets["fingerprint"],
+        "tenancy":st.secrets["tenancy"],
+        "region":st.secrets["region"],
+        "key_file":st.secrets["key_file"] # TODO
+    }
+    # validate the default config file
+    config_response = oci.config.validate_config(config)
+    print("config_response",config_response)
 
-    st.subheader('2.1. Learning Parameters')
-    with st.expander('See parameters'):
-        parameter_n_estimators = st.slider('Number of estimators (n_estimators)', 0, 1000, 100, 100)
-        parameter_max_features = st.select_slider('Max features (max_features)', options=['all', 'sqrt', 'log2'])
-        parameter_min_samples_split = st.slider('Minimum number of samples required to split an internal node (min_samples_split)', 2, 10, 2, 1)
-        parameter_min_samples_leaf = st.slider('Minimum number of samples required to be at a leaf node (min_samples_leaf)', 1, 10, 2, 1)
+    return oci.object_storage.ObjectStorageClient(config)
 
-    st.subheader('2.2. General Parameters')
-    with st.expander('See parameters', expanded=False):
-        parameter_random_state = st.slider('Seed number (random_state)', 0, 1000, 42, 1)
-        parameter_criterion = st.select_slider('Performance measure (criterion)', options=['squared_error', 'absolute_error', 'friedman_mse'])
-        parameter_bootstrap = st.select_slider('Bootstrap samples when building trees (bootstrap)', options=[True, False])
-        parameter_oob_score = st.select_slider('Whether to use out-of-bag samples to estimate the R^2 on unseen data (oob_score)', options=[False, True])
 
-    sleep_time = st.slider('Sleep time', 0, 3, 0)
+def get_object_content(object_storage_client):
+    try:
+        get_object_response = object_storage_client.get_object(NAMESPACE, BUCKET_NAME, OBJECT_NAME)
+        return get_object_response.data.content
+    except oci.exceptions.ServiceError as e:
+        print("Error getting object:", e)
+        return None
 
-# Initiate the model building process
-if uploaded_file or example_data: 
-    with st.status("Running ...", expanded=True) as status:
+
+def save_and_load_json(data_string):
+    rows = [row.split(',') for row in data_string.strip().split('\n')]
+
+    with open('test.json', 'w', newline='', encoding='utf-8') as jsonfile:
+        json.dump(rows, jsonfile)
+
+    with open('test.json', 'r', encoding='utf-8') as jsonfile:
+        return json.load(jsonfile)
+
+
+def create_vectorstore(docs):
+    embeddings = OCIGenAIEmbeddings(
+        model_id="cohere.embed-english-v3.0",
+        service_endpoint="https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
+        compartment_id=COMPARTMENT_ID,
+        model_kwargs={"temperature": 0, "top_p": 0, "max_tokens": 512}
+    )
+    return FAISS.from_documents(docs, embeddings)
+
+
+def create_chains(llm, retriever):
+    contextualize_q_system_prompt = (
+        "Given a chat history and the latest user question "
+        "which might reference context in the chat history, "
+        "formulate a standalone question which can be understood "
+        "without the chat history. Do NOT answer the question, "
+        "just reformulate it if needed and otherwise return it as is."
+    )
+    contextualize_q_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", contextualize_q_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    history_aware_retriever = create_history_aware_retriever(
+        llm, retriever, contextualize_q_prompt,
+    )
+
+    system_prompt = (
+        "Your name is Wall-E,You are an assistant for question-answering tasks. "
+        "Use the following pieces of retrieved context to answer "
+        "the question. If you don't know the answer, say that you "
+        "don't know. Use three sentences maximum and keep the "
+        "answer concise."
+        "\n\n"
+        "{context}"
+    )
+    qa_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+    rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+
+    return rag_chain
+
+
+def get_session_history(store, session_id):
+    if session_id not in store:
+        store[session_id] = ChatMessageHistory()
+    return store[session_id]
+
+
+def response_generator(response):
+    for word in response.split():
+        yield word + " "
+        time.sleep(0.08)
+
+
+def display_chat_history(history):
+    for msg in history.messages:
+        st.chat_message(msg.type).write(msg.content)
+
+
+def main():
+    temperature  = st.sidebar.slider("Tempreture:", min_value=0.0, max_value=1.0, value=1.0, step=0.1)
+    top_p = st.sidebar.slider("Top_p:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
+    max_tokens = st.sidebar.slider("Max Tokens:", min_value=10, max_value=4000, value=512, step=1)
+    top_k = st.sidebar.slider("Top_k:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
     
-        st.write("Loading data ...")
-        time.sleep(sleep_time)
+    llm = initialize_llm(temperature,top_p,top_k,max_tokens)
+    object_storage_client = initialize_object_storage_client()
+    part_file_content = get_object_content(object_storage_client)
 
-        st.write("Preparing data ...")
-        time.sleep(sleep_time)
-        X = df.iloc[:,:-1]
-        y = df.iloc[:,-1]
+    if part_file_content is None:
+        return
+
+    data_string = part_file_content.decode('utf-8')  # Adjust encoding if needed
+    data = save_and_load_json(data_string)
+
+    loader = TextLoader("test.json")
+    documents = loader.load()
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=20)
+    docs = text_splitter.split_documents(documents)      
+
+    vectorstore = create_vectorstore(docs)
+    retriever = vectorstore.as_retriever()
+
+    history = StreamlitChatMessageHistory(key="chat_history")
+    memory = ConversationBufferMemory(chat_memory=history)
+
+    rag_chain = create_chains(llm, retriever)
+    store = {}
+
+    conversational_rag_chain = RunnableWithMessageHistory(
+        rag_chain,
+        lambda session_id: get_session_history(store, session_id),
+        input_messages_key="input",
+        history_messages_key="chat_history",
+        output_messages_key="answer",
+    )
+
+    # Connect to SQLite database
+    conn = sqlite3.connect(f'{DATABASE_NAME}.db')
+    c = conn.cursor()
+
+    # Create a table to store chat messages if not exists
+    c.execute(
+        f'''CREATE TABLE IF NOT EXISTS {DATABASE_NAME} (session_id TEXT, AI_message TEXT, Human_message TEXT, date_val TEXT) ''')
+
+    today = date.today()
+    str_today = str(today)
+
+
+    # Define session history and other tabs
+    tabs = ["Chatbot", "Session History"]
+    selected_tab = st.sidebar.radio("Select Tab", tabs)
+
+    # Display content based on selected tab
+    if selected_tab == "Chatbot":
+        # Display current chat history
+        st.title("Welcome to Techment chatbot")
+
+        display_chat_history(history)
+
+        # Input from the user
+        if prompt := st.chat_input():
+            st.chat_message("human").write_stream(response_generator(prompt))
             
-        st.write("Splitting data ...")
-        time.sleep(sleep_time)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=(100-parameter_split_size)/100, random_state=parameter_random_state)
-    
-        st.write("Model training ...")
-        time.sleep(sleep_time)
 
-        if parameter_max_features == 'all':
-            parameter_max_features = None
-            parameter_max_features_metric = X.shape[1]
-        
-        rf = RandomForestRegressor(
-                n_estimators=parameter_n_estimators,
-                max_features=parameter_max_features,
-                min_samples_split=parameter_min_samples_split,
-                min_samples_leaf=parameter_min_samples_leaf,
-                random_state=parameter_random_state,
-                criterion=parameter_criterion,
-                bootstrap=parameter_bootstrap,
-                oob_score=parameter_oob_score)
-        rf.fit(X_train, y_train)
-        
-        st.write("Applying model to make predictions ...")
-        time.sleep(sleep_time)
-        y_train_pred = rf.predict(X_train)
-        y_test_pred = rf.predict(X_test)
-            
-        st.write("Evaluating performance metrics ...")
-        time.sleep(sleep_time)
-        train_mse = mean_squared_error(y_train, y_train_pred)
-        train_r2 = r2_score(y_train, y_train_pred)
-        test_mse = mean_squared_error(y_test, y_test_pred)
-        test_r2 = r2_score(y_test, y_test_pred)
-        
-        st.write("Displaying performance metrics ...")
-        time.sleep(sleep_time)
-        parameter_criterion_string = ' '.join([x.capitalize() for x in parameter_criterion.split('_')])
-        #if 'Mse' in parameter_criterion_string:
-        #    parameter_criterion_string = parameter_criterion_string.replace('Mse', 'MSE')
-        rf_results = pd.DataFrame(['Random forest', train_mse, train_r2, test_mse, test_r2]).transpose()
-        rf_results.columns = ['Method', f'Training {parameter_criterion_string}', 'Training R2', f'Test {parameter_criterion_string}', 'Test R2']
-        # Convert objects to numerics
-        for col in rf_results.columns:
-            rf_results[col] = pd.to_numeric(rf_results[col], errors='ignore')
-        # Round to 3 digits
-        rf_results = rf_results.round(3)
-        
-    status.update(label="Status", state="complete", expanded=False)
+            # Invoke the conversational RAG chain
+            response = conversational_rag_chain.invoke(
+                {"input": f"{prompt}"},
+                config={
+                    "configurable": {"session_id": SESSION_ID}
+                },
+            )
+            # Update the history with the new human message
+            history.add_user_message(prompt)
 
-    # Display data info
-    st.header('Input data', divider='rainbow')
-    col = st.columns(4)
-    col[0].metric(label="No. of samples", value=X.shape[0], delta="")
-    col[1].metric(label="No. of X variables", value=X.shape[1], delta="")
-    col[2].metric(label="No. of Training samples", value=X_train.shape[0], delta="")
-    col[3].metric(label="No. of Test samples", value=X_test.shape[0], delta="")
-    
-    with st.expander('Initial dataset', expanded=True):
-        st.dataframe(df, height=210, use_container_width=True)
-    with st.expander('Train split', expanded=False):
-        train_col = st.columns((3,1))
-        with train_col[0]:
-            st.markdown('**X**')
-            st.dataframe(X_train, height=210, hide_index=True, use_container_width=True)
-        with train_col[1]:
-            st.markdown('**y**')
-            st.dataframe(y_train, height=210, hide_index=True, use_container_width=True)
-    with st.expander('Test split', expanded=False):
-        test_col = st.columns((3,1))
-        with test_col[0]:
-            st.markdown('**X**')
-            st.dataframe(X_test, height=210, hide_index=True, use_container_width=True)
-        with test_col[1]:
-            st.markdown('**y**')
-            st.dataframe(y_test, height=210, hide_index=True, use_container_width=True)
+            # Update the history with the new AI response
+            history.add_ai_message(response["answer"])
 
-    # Zip dataset files
-    df.to_csv('dataset.csv', index=False)
-    X_train.to_csv('X_train.csv', index=False)
-    y_train.to_csv('y_train.csv', index=False)
-    X_test.to_csv('X_test.csv', index=False)
-    y_test.to_csv('y_test.csv', index=False)
-    
-    list_files = ['dataset.csv', 'X_train.csv', 'y_train.csv', 'X_test.csv', 'y_test.csv']
-    with zipfile.ZipFile('dataset.zip', 'w') as zipF:
-        for file in list_files:
-            zipF.write(file, compress_type=zipfile.ZIP_DEFLATED)
+            # Display the AI response
+            st.chat_message("ai").write_stream(response_generator(response["answer"]))
 
-    with open('dataset.zip', 'rb') as datazip:
-        btn = st.download_button(
-                label='Download ZIP',
-                data=datazip,
-                file_name="dataset.zip",
-                mime="application/octet-stream"
-                )
-    
-    # Display model parameters
-    st.header('Model parameters', divider='rainbow')
-    parameters_col = st.columns(3)
-    parameters_col[0].metric(label="Data split ratio (% for Training Set)", value=parameter_split_size, delta="")
-    parameters_col[1].metric(label="Number of estimators (n_estimators)", value=parameter_n_estimators, delta="")
-    parameters_col[2].metric(label="Max features (max_features)", value=parameter_max_features_metric, delta="")
-    
-    # Display feature importance plot
-    importances = rf.feature_importances_
-    feature_names = list(X.columns)
-    forest_importances = pd.Series(importances, index=feature_names)
-    df_importance = forest_importances.reset_index().rename(columns={'index': 'feature', 0: 'value'})
-    
-    bars = alt.Chart(df_importance).mark_bar(size=40).encode(
-             x='value:Q',
-             y=alt.Y('feature:N', sort='-x')
-           ).properties(height=250)
+            # Save chat message to the database
+            c.execute(
+                f"INSERT INTO {DATABASE_NAME} (session_id, AI_message, Human_message, date_val) VALUES (?,?,?,?)",
+                (SESSION_ID, response["answer"],prompt, str_today))
+            conn.commit()
 
-    performance_col = st.columns((2, 0.2, 3))
-    with performance_col[0]:
-        st.header('Model performance', divider='rainbow')
-        st.dataframe(rf_results.T.reset_index().rename(columns={'index': 'Parameter', 0: 'Value'}))
-    with performance_col[2]:
-        st.header('Feature importance', divider='rainbow')
-        st.altair_chart(bars, theme='streamlit', use_container_width=True)
+    elif selected_tab == "Session History":
+        # Create a sidebar to display session history
+        st.sidebar.subheader("History")
+        # session_history = st.sidebar.expander("Session History")
 
-    # Prediction results
-    st.header('Prediction results', divider='rainbow')
-    s_y_train = pd.Series(y_train, name='actual').reset_index(drop=True)
-    s_y_train_pred = pd.Series(y_train_pred, name='predicted').reset_index(drop=True)
-    df_train = pd.DataFrame(data=[s_y_train, s_y_train_pred], index=None).T
-    df_train['class'] = 'train'
-        
-    s_y_test = pd.Series(y_test, name='actual').reset_index(drop=True)
-    s_y_test_pred = pd.Series(y_test_pred, name='predicted').reset_index(drop=True)
-    df_test = pd.DataFrame(data=[s_y_test, s_y_test_pred], index=None).T
-    df_test['class'] = 'test'
-    
-    df_prediction = pd.concat([df_train, df_test], axis=0)
-    
-    prediction_col = st.columns((2, 0.2, 3))
-    
-    # Display dataframe
-    with prediction_col[0]:
-        st.dataframe(df_prediction, height=320, use_container_width=True)
+        # Display chat history from the database
+        st.write("Chat History:")
+        unique_dates = c.execute(
+            f"SELECT DISTINCT date_val FROM {DATABASE_NAME} where session_id='{SESSION_ID}'").fetchall()
 
-    # Display scatter plot of actual vs predicted values
-    with prediction_col[2]:
-        scatter = alt.Chart(df_prediction).mark_circle(size=60).encode(
-                        x='actual',
-                        y='predicted',
-                        color='class'
-                  )
-        st.altair_chart(scatter, theme='streamlit', use_container_width=True)
+        for date_value in unique_dates:
+            with st.expander(date_value[0]):
+                chat_history_date = c.execute(
+                    f"SELECT AI_message, Human_message, date_val FROM {DATABASE_NAME} where session_id='{SESSION_ID}' and date_val='{date_value[0]}'"
+                ).fetchall()
 
-    
-# Ask for CSV upload if none is detected
-else:
-    st.warning('👈 Upload a CSV file or click *"Load example data"* to get started!')
+                for message_date in chat_history_date:
+                    st.chat_message("human").write(message_date[1])
+                    st.chat_message("ai").write(message_date[0])
+                    st.markdown("<hr>", unsafe_allow_html=True)
+
+        conn.close()
+
+
+if __name__ == "__main__":
+    main()
