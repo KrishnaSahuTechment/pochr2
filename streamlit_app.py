@@ -42,14 +42,14 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
 
 
 def initialize_object_storage_client():
-    config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)   
-    # config = {
-    #     "user":st.secrets["user"] ,
-    #     "fingerprint":st.secrets["fingerprint"],
-    #     "tenancy":st.secrets["tenancy"],
-    #     "region":st.secrets["region"],
-    #     "key_file":st.secrets["key_file"] # TODO
-    # }
+    # config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)   
+    config = {
+        "user":st.secrets["user"] ,
+        "fingerprint":st.secrets["fingerprint"],
+        "tenancy":st.secrets["tenancy"],
+        "region":st.secrets["region"],
+        "key_file":st.secrets["key_file"] # TODO
+    }
     # validate the default config file
     # signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
     config_response = oci.config.validate_config(config)
