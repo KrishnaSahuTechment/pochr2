@@ -51,6 +51,7 @@ def initialize_object_storage_client():
     #     "key_file":st.secrets["key_file"] # TODO
     # }
     # validate the default config file
+    # signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
     config_response = oci.config.validate_config(config)
     print("config_response",config_response)
 
