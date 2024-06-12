@@ -1,11 +1,10 @@
 import streamlit as st
 import os
 import json
-import streamlit as st
 import time
 import sqlite3
 from datetime import date
-
+import subprocess
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.memory.buffer import ConversationBufferMemory
@@ -32,6 +31,20 @@ COMPARTMENT_ID = st.secrets["COMPARTMENT_ID"]
 SESSION_ID = "abc123"
 DATABASE_NAME = "chat_history_table_session"
 
+# Define the command you want to run in the subprocess
+command = "oci os ns get"  # For example, listing files in the current directory
+
+# Run the command as a subprocess using the subprocess module
+process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+output, error = process.communicate()
+
+# Display the output in Streamlit
+st.write("Output:")
+st.code(output.decode('utf-8'))
+
+st.write("Error:")
+st.code(error.decode('utf-8'))
+
 def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
     return OCIGenAI(
         model_id="cohere.command",
@@ -42,18 +55,18 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
 
 
 def initialize_object_storage_client():
-    # config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)   
-    config = {
-        "user":st.secrets["user"] ,
-        "fingerprint":st.secrets["fingerprint"],
-        "tenancy":st.secrets["tenancy"],
-        "region":st.secrets["region"],
-        "key_file":st.secrets["key_file"] # TODO
-    }
+    config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)   
+    # config = {
+    #     "user":st.secrets["user"] ,
+    #     "fingerprint":st.secrets["fingerprint"],
+    #     "tenancy":st.secrets["tenancy"],
+    #     "region":st.secrets["region"],
+    #     "key_file":st.secrets["key_file"] # TODO
+    # }
     # validate the default config file
     # signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
-    config_response = oci.config.validate_config(config)
-    print("config_response",config_response)
+    # config_response = oci.config.validate_config(config)
+    # print("config_response",config_response)
 
     return oci.object_storage.ObjectStorageClient(config)
 
