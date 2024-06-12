@@ -1,0 +1,6 @@
+[DEFAULT]
+user="ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq"
+fingerprint="e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd"
+key_file="krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem"
+tenancy="ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja"
+region="us-chicago-1"
