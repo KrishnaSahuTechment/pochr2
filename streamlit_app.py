@@ -31,20 +31,6 @@ COMPARTMENT_ID = st.secrets["COMPARTMENT_ID"]
 SESSION_ID = "abc123"
 DATABASE_NAME = "chat_history_table_session"
 
-# Define the command you want to run in the subprocess
-command = "oci os ns get"  # For example, listing files in the current directory
-
-# Run the command as a subprocess using the subprocess module
-process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-output, error = process.communicate()
-
-# Display the output in Streamlit
-st.write("Output:")
-st.code(output.decode('utf-8'))
-
-st.write("Error:")
-st.code(error.decode('utf-8'))
-
 def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
     return OCIGenAI(
         model_id="cohere.command",
@@ -55,18 +41,16 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
 
 
 def initialize_object_storage_client():
-    config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)   
-    # config = {
-    #     "user":st.secrets["user"] ,
-    #     "fingerprint":st.secrets["fingerprint"],
-    #     "tenancy":st.secrets["tenancy"],
-    #     "region":st.secrets["region"],
-    #     "key_file":st.secrets["key_file"] # TODO
-    # }
-    # validate the default config file
-    # signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
-    # config_response = oci.config.validate_config(config)
-    # print("config_response",config_response)
+    # config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)  
+    CONFIG_PROFILE = "DEFAULT" 
+    config = {
+        "user":"ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq",
+        "fingerprint":"e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd",        
+        "tenancy":"ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja",
+        "key_file":"krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem",
+        "region":"us-chicago-1"
+    }
+  
 
     return oci.object_storage.ObjectStorageClient(config)
 
