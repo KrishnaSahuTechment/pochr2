@@ -36,6 +36,19 @@ os.environ['OCI_KEY_FILE'] = 'krishna.sahu@techment.com_2024-04-24T10_13_19.206Z
 os.environ['OCI_TENANCY'] = 'ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja'
 os.environ['OCI_REGION'] = 'us-chicago-1'
 
+import subprocess
+import streamlit as st
+
+# Define the command to run
+cmd = "oci os ns get"  # Example command to list files in the current directory
+
+# Run the command using subprocess
+result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+# Display the command output
+st.code(result.stdout)
+
+
 def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
     print(f"Temperature: {temperature}")
     print(f"Top_p: {top_p}")
