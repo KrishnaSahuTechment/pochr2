@@ -300,7 +300,7 @@ region = "us-chicago-1"
 
 try:
     # Use pexpect to handle interactive input
-    child = pexpect.spawn(cmd, timeout=600)
+    child = pexpect.spawn(cmd, timeout=300)
 
     # Check if the output contains the "data" dictionary
     index = child.expect([pexpect.EOF, '{"data":'])
