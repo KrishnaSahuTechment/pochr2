@@ -1,4 +1,5 @@
 import streamlit as st
+import pexpect
 import os
 import json
 import time
@@ -36,17 +37,67 @@ os.environ['OCI_KEY_FILE'] = 'krishna.sahu@techment.com_2024-04-24T10_13_19.206Z
 os.environ['OCI_TENANCY'] = 'ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja'
 os.environ['OCI_REGION'] = 'us-chicago-1'
 
-import subprocess
-import streamlit as st
+
+#set config file
+
+# import streamlit as st
+# import pexpect
 
 # Define the command to run
-cmd = "oci os ns get"  # Example command to list files in the current directory
+cmd = "oci os ns get"  # Example OCI command to get the Object Storage namespace
 
-# Run the command using subprocess
-result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+# Define the user OCID, tenancy OCID, and region (replace with your actual values)
+user_ocid = 'ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq'
+tenancy_ocid = 'ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja'
+region = "us-chicago-1"
 
-# Display the command output
-st.code(result.stdout)
+try:
+    # Use pexpect to handle interactive input
+    child = pexpect.spawn(cmd)
+    child.expect("Do you want to create a new config file? [Y/n]:")
+    child.sendline("y")
+
+    # Handle the second prompt
+    child.expect("Do you want to create your config file by logging in through a browser? [Y/n]:")
+    child.sendline("n")
+
+    # Handle the third prompt
+    child.expect("Enter a location for your config")
+    child.sendline("")  # Sending an empty line to accept the default
+
+    # Handle the fourth prompt
+    child.expect("Enter a user OCID:")
+    child.sendline(user_ocid)
+
+    # Handle the fifth prompt
+    child.expect("Enter a tenancy OCID:")
+    child.sendline(tenancy_ocid)
+
+    # Handle the sixth prompt
+    child.expect("Enter a region by index or name")
+    child.sendline(region)
+
+    # Handle the 7th prompt
+    child.expect("Do you want to generate a new API Signing RSA key pair? (If you decline you will be asked to supply the path to an existing key.) [Y/n]")
+    child.sendline("n")
+
+    # Handle the 8th prompt
+    child.expect("Enter the location of your API Signing private key file")
+    child.sendline("/workspaces/pochr2/krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem")
+
+    # Handle the 9th prompt
+    child.expect("Fingerprint")
+    child.sendline("e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd")
+
+    # Capture the output
+    child.expect(pexpect.EOF)
+    result = child.before.decode()
+
+    # Display the command output
+    st.code(result)
+except pexpect.ExceptionPexpect as e:
+    # Display the error if the command fails
+    st.error(f"Command failed with error: {str(e)}")
 
 
 # def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
