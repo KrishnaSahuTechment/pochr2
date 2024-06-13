@@ -40,23 +40,12 @@ os.environ['OCI_REGION'] = 'us-chicago-1'
 
 #set config file
 
-# import streamlit as st
-# import pexpect
-
-# Define the command to run
-cmd = "oci os ns get"  # Example OCI command to get the Object Storage namespace
-
-# Define the user OCID, tenancy OCID, and region (replace with your actual values)
-user_ocid = 'ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq'
-tenancy_ocid = 'ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja'
-region = "us-chicago-1"
-
 import streamlit as st
 import pexpect
 import json
 
 # Define the command to run
-cmd = "oci os ns get"  # Example OCI command to get the Object Storage namespace
+cmd = "/workspaces/pochr2/.venv/bin/oci os ns get"
 
 # Define the user OCID, tenancy OCID, and region (replace with your actual values)
 user_ocid = 'ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq'
@@ -65,7 +54,7 @@ region = "us-chicago-1"
 
 try:
     # Use pexpect to handle interactive input
-    child = pexpect.spawn(cmd, timeout=300)
+    child = pexpect.spawn(cmd, timeout=600)
 
     # Check if the output contains the "data" dictionary
     index = child.expect([pexpect.EOF, '{"data":'])
@@ -73,7 +62,7 @@ try:
     if index == 1:  # "data" dictionary found in the output
         # Extract the JSON data and parse it
         data_output = child.before.decode()
-        data_dict = json.loads(data_output)
+        data_dict = json.loads(data_output)    
 
         if "data" in data_dict and isinstance(data_dict["data"], dict):
             st.write("Found 'data' dictionary in the output:", data_dict["data"])
@@ -126,6 +115,9 @@ try:
 
         # Display the command output
         st.code(result)
+except pexpect.EOF:
+    # Handle unexpected EOF errors
+    st.error("Unexpected End Of File (EOF). Command terminated unexpectedly.")
 except pexpect.ExceptionPexpect as e:
     # Display the error if the command fails
     st.error(f"Command failed with error: {str(e)}")
