@@ -53,7 +53,9 @@ region = "us-chicago-1"
 
 try:
     # Use pexpect to handle interactive input
-    child = pexpect.spawn(cmd)
+    # child = pexpect.spawn(cmd)
+    child = pexpect.spawn(cmd, timeout=300)
+
     child.expect("Do you want to create a new config file? [Y/n]:")
     child.sendline("y")
 
