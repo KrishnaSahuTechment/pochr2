@@ -45,7 +45,7 @@ import pexpect
 import json
 
 # Define the command to run
-cmd = "/workspaces/pochr2/.venv/bin/oci os ns get"
+cmd = "oci os ns get"
 
 # Define the user OCID, tenancy OCID, and region (replace with your actual values)
 user_ocid = 'ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq'
