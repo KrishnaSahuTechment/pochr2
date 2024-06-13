@@ -51,56 +51,84 @@ user_ocid = 'ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirv
 tenancy_ocid = 'ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja'
 region = "us-chicago-1"
 
+import streamlit as st
+import pexpect
+import json
+
+# Define the command to run
+cmd = "oci os ns get"  # Example OCI command to get the Object Storage namespace
+
+# Define the user OCID, tenancy OCID, and region (replace with your actual values)
+user_ocid = 'ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq'
+tenancy_ocid = 'ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja'
+region = "us-chicago-1"
+
 try:
     # Use pexpect to handle interactive input
-    # child = pexpect.spawn(cmd)
     child = pexpect.spawn(cmd, timeout=300)
 
-    child.expect("Do you want to create a new config file? [Y/n]:")
-    child.sendline("y")
+    # Check if the output contains the "data" dictionary
+    index = child.expect([pexpect.EOF, '{"data":'])
 
-    # Handle the second prompt
-    child.expect("Do you want to create your config file by logging in through a browser? [Y/n]:")
-    child.sendline("n")
+    if index == 1:  # "data" dictionary found in the output
+        # Extract the JSON data and parse it
+        data_output = child.before.decode()
+        data_dict = json.loads(data_output)
 
-    # Handle the third prompt
-    child.expect("Enter a location for your config")
-    child.sendline("")  # Sending an empty line to accept the default
+        if "data" in data_dict and isinstance(data_dict["data"], dict):
+            st.write("Found 'data' dictionary in the output:", data_dict["data"])
+            # You can perform additional actions or skip the remaining prompts here
+        else:
+            st.error("Invalid output format. 'data' dictionary not found or invalid format.")
+    else:
+        # "data" dictionary not found in the output, continue with the prompts
+        st.write("Expected output not found. Continuing with prompts...")
 
-    # Handle the fourth prompt
-    child.expect("Enter a user OCID:")
-    child.sendline(user_ocid)
+        # Handle the first prompt
+        child.expect("Do you want to create a new config file? [Y/n]:")
+        child.sendline("y")
 
-    # Handle the fifth prompt
-    child.expect("Enter a tenancy OCID:")
-    child.sendline(tenancy_ocid)
+        # Handle the second prompt
+        child.expect("Do you want to create your config file by logging in through a browser? [Y/n]:")
+        child.sendline("n")
 
-    # Handle the sixth prompt
-    child.expect("Enter a region by index or name")
-    child.sendline(region)
+        # Handle the third prompt
+        child.expect("Enter a location for your config")
+        child.sendline("")  # Sending an empty line to accept the default
 
-    # Handle the 7th prompt
-    child.expect("Do you want to generate a new API Signing RSA key pair? (If you decline you will be asked to supply the path to an existing key.) [Y/n]")
-    child.sendline("n")
+        # Handle the fourth prompt
+        child.expect("Enter a user OCID:")
+        child.sendline(user_ocid)
 
-    # Handle the 8th prompt
-    child.expect("Enter the location of your API Signing private key file")
-    child.sendline("/workspaces/pochr2/krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem")
+        # Handle the fifth prompt
+        child.expect("Enter a tenancy OCID:")
+        child.sendline(tenancy_ocid)
 
-    # Handle the 9th prompt
-    child.expect("Fingerprint")
-    child.sendline("e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd")
+        # Handle the sixth prompt
+        child.expect("Enter a region by index or name")
+        child.sendline(region)
 
-    # Capture the output
-    child.expect(pexpect.EOF)
-    result = child.before.decode()
+        # Handle the 7th prompt
+        child.expect("Do you want to generate a new API Signing RSA key pair? (If you decline you will be asked to supply the path to an existing key.) [Y/n]")
+        child.sendline("n")
 
-    # Display the command output
-    st.code(result)
+        # Handle the 8th prompt
+        child.expect("Enter the location of your API Signing private key file")
+        child.sendline("/workspaces/pochr2/krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem")
+
+        # Handle the 9th prompt
+        child.expect("Fingerprint")
+        child.sendline("e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd")
+
+        # Capture the output
+        child.expect(pexpect.EOF)
+        result = child.before.decode()
+
+        # Display the command output
+        st.code(result)
 except pexpect.ExceptionPexpect as e:
     # Display the error if the command fails
     st.error(f"Command failed with error: {str(e)}")
-
 
 # def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
 #     print(f"Temperature: {temperature}")
