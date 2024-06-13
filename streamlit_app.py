@@ -31,6 +31,7 @@ COMPARTMENT_ID = st.secrets["COMPARTMENT_ID"]
 SESSION_ID = "abc123"
 DATABASE_NAME = "chat_history_table_session"
 
+
 def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
     return OCIGenAI(
         model_id="cohere.command",
@@ -50,7 +51,7 @@ def initialize_object_storage_client():
     #     "tenancy":"ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja",
     #     "key_file":"krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem",
     #     "region":"us-chicago-1"
-    # }
+    # }   
   
 
     return oci.object_storage.ObjectStorageClient(config)
