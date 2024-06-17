@@ -36,7 +36,13 @@ os.environ['OCI_FINGERPRINT'] = 'e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd
 os.environ['OCI_KEY_FILE'] = 'krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem'
 os.environ['OCI_TENANCY'] = 'ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja'
 os.environ['OCI_REGION'] = 'us-chicago-1'
-
+config = {
+            "user":"ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq",
+            "fingerprint":"e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd",       
+            "key_file":"krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem", 
+            "tenancy":"ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja",        
+            "region":"us-chicago-1"
+        } 
 
 #set config file
 
@@ -51,11 +57,14 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
     print(f"Top_k: {top_k}")
     print(f"Max_tokens: {max_tokens}")
     try:
+        client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=oci_config)    
+        
         llm =  OCIGenAI(
             model_id="cohere.command",
             service_endpoint="https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
             compartment_id=COMPARTMENT_ID,
-            model_kwargs={"temperature": temperature, "top_p": top_p, "top_k": top_k, "max_tokens": max_tokens}        
+            model_kwargs={"temperature": temperature, "top_p": top_p, "top_k": top_k, "max_tokens": max_tokens}     
+            client=client
         )
         print("LLM initialized successfully")
     except Exception as e:
@@ -107,11 +116,14 @@ def save_and_load_json(data_string):
 
 
 def create_vectorstore(docs):
+    client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=oci_config)       
+    
     embeddings = OCIGenAIEmbeddings(
         model_id="cohere.embed-english-v3.0",
         service_endpoint="https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
         compartment_id=COMPARTMENT_ID,
         model_kwargs={"temperature": 0, "top_p": 0, "max_tokens": 512}
+        client=client
     )
     return FAISS.from_documents(docs, embeddings)
 
