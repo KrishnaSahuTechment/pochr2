@@ -63,7 +63,7 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
             model_id="cohere.command",
             service_endpoint="https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
             compartment_id=COMPARTMENT_ID,
-            model_kwargs={"temperature": temperature, "top_p": top_p, "top_k": top_k, "max_tokens": max_tokens}     
+            model_kwargs={"temperature": temperature, "top_p": top_p, "top_k": top_k, "max_tokens": max_tokens},     
             client=client
         )
         print("LLM initialized successfully")
@@ -122,7 +122,7 @@ def create_vectorstore(docs):
         model_id="cohere.embed-english-v3.0",
         service_endpoint="https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
         compartment_id=COMPARTMENT_ID,
-        model_kwargs={"temperature": 0, "top_p": 0, "max_tokens": 512}
+        model_kwargs={"temperature": 0, "top_p": 0, "max_tokens": 512},
         client=client
     )
     return FAISS.from_documents(docs, embeddings)
