@@ -69,7 +69,7 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
 def initialize_object_storage_client():
     try:
         CONFIG_PROFILE = "DEFAULT" 
-        config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)  
+        # config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)  
         
         config = {
             "user":"ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq",
