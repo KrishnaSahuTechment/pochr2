@@ -57,7 +57,7 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
     print(f"Top_k: {top_k}")
     print(f"Max_tokens: {max_tokens}")
     try:
-        client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=oci_config)    
+        client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=config)    
         
         llm =  OCIGenAI(
             model_id="cohere.command",
@@ -116,7 +116,7 @@ def save_and_load_json(data_string):
 
 
 def create_vectorstore(docs):
-    client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=oci_config)       
+    client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=config)       
     
     embeddings = OCIGenAIEmbeddings(
         model_id="cohere.embed-english-v3.0",
