@@ -1,14 +1,12 @@
 import streamlit as st
-import pexpect
-import os
 import json
 import time
 import sqlite3
 from datetime import date
-import subprocess
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.memory.buffer import ConversationBufferMemory
+from langchain import PromptTemplate, FewShotPromptTemplate
 
 from langchain_community.llms import OCIGenAI
 from langchain_community.embeddings import OCIGenAIEmbeddings
@@ -24,24 +22,32 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 import oci
 
 # Global Variables
-CONFIG_PROFILE = "DEFAULT"
+CONFIG_PROFILE = st.secrets["CONFIG_PROFILE"] 
 NAMESPACE = st.secrets["NAMESPACE"] 
 BUCKET_NAME = st.secrets["BUCKET_NAME"] 
 OBJECT_NAME = st.secrets["OBJECT_NAME"] 
 COMPARTMENT_ID = st.secrets["COMPARTMENT_ID"] 
+user = st.secrets["user"] 
+fingerprint = st.secrets["fingerprint"] 
+key_file = st.secrets["key_file"] 
+tenancy = st.secrets["tenancy"] 
+region = st.secrets["region"] 
+
 SESSION_ID = "abc12345"
 DATABASE_NAME = "chat_history_table_session"
-os.environ['OCI_USER'] = 'ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq'
-os.environ['OCI_FINGERPRINT'] = 'e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd'
-os.environ['OCI_KEY_FILE'] = 'krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem'
-os.environ['OCI_TENANCY'] = 'ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja'
-os.environ['OCI_REGION'] = 'us-chicago-1'
+
+# os.environ['OCI_USER'] = 'ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq'
+# os.environ['OCI_FINGERPRINT'] = 'e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd'
+# os.environ['OCI_KEY_FILE'] = 'krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem'
+# os.environ['OCI_TENANCY'] = 'ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja'
+# os.environ['OCI_REGION'] = 'us-chicago-1'
+
 config = {
-            "user":"ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq",
-            "fingerprint":"e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd",       
-            "key_file":"krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem", 
-            "tenancy":"ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja",        
-            "region":"us-chicago-1"
+            "user":user,
+            "fingerprint":fingerprint,       
+            "key_file":key_file, 
+            "tenancy":tenancy,        
+            "region":region
         } 
 
 #set config file
@@ -80,13 +86,13 @@ def initialize_object_storage_client():
         CONFIG_PROFILE = "DEFAULT" 
         # config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)  
         
-        config = {
-            "user":"ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq",
-            "fingerprint":"e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd",       
-            "key_file":"krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem", 
-            "tenancy":"ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja",        
-            "region":"us-chicago-1"
-        }   
+        # config = {
+        #     "user":"ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq",
+        #     "fingerprint":"e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd",       
+        #     "key_file":"krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem", 
+        #     "tenancy":"ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja",        
+        #     "region":"us-chicago-1"
+        # }   
         print(f"Loaded OCI config: {config}")
         return oci.object_storage.ObjectStorageClient(config)
     except Exception as e:
