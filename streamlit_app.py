@@ -29,7 +29,7 @@ OBJECT_NAME = st.secrets["OBJECT_NAME"]
 COMPARTMENT_ID = st.secrets["COMPARTMENT_ID"] 
 user = st.secrets["user"] 
 fingerprint = st.secrets["fingerprint"] 
-key_file = st.secrets["key_file"] 
+key_file = st.secrets["PEM_FILE_CONTENTS"] 
 tenancy = st.secrets["tenancy"] 
 region = st.secrets["region"] 
 
