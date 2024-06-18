@@ -29,7 +29,7 @@ NAMESPACE = st.secrets["NAMESPACE"]
 BUCKET_NAME = st.secrets["BUCKET_NAME"] 
 OBJECT_NAME = st.secrets["OBJECT_NAME"] 
 COMPARTMENT_ID = st.secrets["COMPARTMENT_ID"] 
-SESSION_ID = "abc123"
+SESSION_ID = "abc12345"
 DATABASE_NAME = "chat_history_table_session"
 os.environ['OCI_USER'] = 'ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq'
 os.environ['OCI_FINGERPRINT'] = 'e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd'
@@ -176,9 +176,13 @@ def get_session_history(store, session_id):
 
 
 def response_generator(response):
-    for word in response.split():
-        yield word + " "
-        time.sleep(0.08)
+    lines = response.splitlines(keepends=True)
+    for line in lines:
+        for word in line.split():
+            yield word + " "
+            time.sleep(0.08)
+        yield "\n"  # Yield a newline character to preserve line breaks
+
 
 
 def display_chat_history(history):
@@ -187,7 +191,7 @@ def display_chat_history(history):
 
 
 def main():
-    temperature  = st.sidebar.slider("Tempreture:", min_value=0.0, max_value=1.0, value=1.0, step=0.1)
+    temperature  = st.sidebar.slider("Tempreture:", min_value=0.0, max_value=1.0, value=0.7, step=0.1)
     top_p = st.sidebar.slider("Top_p:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
     max_tokens = st.sidebar.slider("Max Tokens:", min_value=10, max_value=4000, value=512, step=1)
     top_k = st.sidebar.slider("Top_k:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
@@ -295,7 +299,11 @@ def main():
                     st.chat_message("ai").write(message_date[0])
                     st.markdown("<hr>", unsafe_allow_html=True)
 
-        conn.close()
+        # all_data = c.execute(
+        #             f"SELECT session_id,AI_message, Human_message, date_val FROM {DATABASE_NAME} where session_id='{SESSION_ID}'"
+        #         ).fetchall()
+        # st.write(all_data)
+        # conn.close()
 
 
 if __name__ == "__main__":
