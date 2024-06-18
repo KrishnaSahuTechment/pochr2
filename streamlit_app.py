@@ -36,11 +36,6 @@ region = st.secrets["region"]
 SESSION_ID = "abc12345"
 DATABASE_NAME = "chat_history_table_session"
 
-# os.environ['OCI_USER'] = 'ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq'
-# os.environ['OCI_FINGERPRINT'] = 'e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd'
-# os.environ['OCI_KEY_FILE'] = 'krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem'
-# os.environ['OCI_TENANCY'] = 'ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja'
-# os.environ['OCI_REGION'] = 'us-chicago-1'
 
 config = {
             "user":user,
@@ -82,18 +77,7 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
 
 
 def initialize_object_storage_client():
-    try:
-        CONFIG_PROFILE = "DEFAULT" 
-        # config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)  
-        
-        # config = {
-        #     "user":"ocid1.user.oc1..aaaaaaaawxbz5prkm6y3ja5ambupqdfgqn6ggp5zbzojpq7pirvbyqas6dgq",
-        #     "fingerprint":"e4:64:6a:9e:1a:fa:0d:2f:7a:f8:36:d8:8a:18:83:fd",       
-        #     "key_file":"krishna.sahu@techment.com_2024-04-24T10_13_19.206Z.pem", 
-        #     "tenancy":"ocid1.tenancy.oc1..aaaaaaaauevhkihjbrur3awjyepvnvkelbtw5qss6cjuxhwop4etveapxoja",        
-        #     "region":"us-chicago-1"
-        # }   
-        print(f"Loaded OCI config: {config}")
+    try: 
         return oci.object_storage.ObjectStorageClient(config)
     except Exception as e:
         print(f"Error loading OCI config: {e}")
