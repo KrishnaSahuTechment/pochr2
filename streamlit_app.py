@@ -36,7 +36,7 @@ region = st.secrets["region"]
 SESSION_ID = "abc12345"
 DATABASE_NAME = "chat_history_table_session"
 
-
+#set config file
 config = {
             "user":user,
             "fingerprint":fingerprint,       
@@ -44,13 +44,6 @@ config = {
             "tenancy":tenancy,        
             "region":region
         } 
-
-#set config file
-
-import streamlit as st
-import pexpect
-import json
-
 
 def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
     print(f"Temperature: {temperature}")
@@ -72,9 +65,7 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
         print(f"Error initializing OCIGenAI: {e}")
         raise e
 
-    return llm
-     
-
+    return llm  
 
 def initialize_object_storage_client():
     try: 
@@ -82,9 +73,6 @@ def initialize_object_storage_client():
     except Exception as e:
         print(f"Error loading OCI config: {e}")
         raise e
-
-    # return oci.object_storage.ObjectStorageClient(config)
-
 
 def get_object_content(object_storage_client):
     try:
@@ -94,7 +82,6 @@ def get_object_content(object_storage_client):
         print("Error getting object:", e)
         return None
 
-
 def save_and_load_json(data_string):
     rows = [row.split(',') for row in data_string.strip().split('\n')]
 
@@ -103,7 +90,6 @@ def save_and_load_json(data_string):
 
     with open('test.json', 'r', encoding='utf-8') as jsonfile:
         return json.load(jsonfile)
-
 
 def create_vectorstore(docs):
     client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=config)       
@@ -116,7 +102,6 @@ def create_vectorstore(docs):
         client=client
     )
     return FAISS.from_documents(docs, embeddings)
-
 
 def create_chains(llm, retriever):
     contextualize_q_system_prompt = (
@@ -158,12 +143,10 @@ def create_chains(llm, retriever):
 
     return rag_chain
 
-
 def get_session_history(store, session_id):
     if session_id not in store:
         store[session_id] = ChatMessageHistory()
     return store[session_id]
-
 
 def response_generator(response):
     lines = response.splitlines(keepends=True)
@@ -173,12 +156,9 @@ def response_generator(response):
             time.sleep(0.08)
         yield "\n"  # Yield a newline character to preserve line breaks
 
-
-
 def display_chat_history(history):
     for msg in history.messages:
         st.chat_message(msg.type).write(msg.content)
-
 
 def main():
     temperature  = st.sidebar.slider("Tempreture:", min_value=0.0, max_value=1.0, value=0.7, step=0.1)
@@ -294,7 +274,6 @@ def main():
         #         ).fetchall()
         # st.write(all_data)
         # conn.close()
-
 
 if __name__ == "__main__":
     main()
