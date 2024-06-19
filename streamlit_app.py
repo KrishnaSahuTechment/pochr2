@@ -3,6 +3,9 @@ import json
 import time
 import sqlite3
 from datetime import date
+from datetime import datetime, timedelta
+
+
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.memory.buffer import ConversationBufferMemory
@@ -36,6 +39,10 @@ region = st.secrets["region"]
 SESSION_ID = "abc12345"
 DATABASE_NAME = "chat_history_table_session"
 
+pdf_bucket_name = st.secrets["pdf_bucket_name"] #"demo_text_labeling"
+
+store = {}
+
 #set config file
 config = {
             "user":user,
@@ -44,6 +51,8 @@ config = {
             "tenancy":tenancy,        
             "region":region
         } 
+
+object_storage = oci.object_storage.ObjectStorageClient(config)
 
 def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
     print(f"Temperature: {temperature}")
@@ -114,7 +123,7 @@ def create_chains(llm, retriever):
     contextualize_q_prompt = ChatPromptTemplate.from_messages(
         [
             ("system", contextualize_q_system_prompt),
-            MessagesPlaceholder("chat_history"),
+            MessagesPlaceholder("history"),
             ("human", "{input}"),
         ]
     )
@@ -134,7 +143,7 @@ def create_chains(llm, retriever):
     qa_prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system_prompt),
-            MessagesPlaceholder("chat_history"),
+            MessagesPlaceholder("history"),
             ("human", "{input}"),
         ]
     )
@@ -143,7 +152,12 @@ def create_chains(llm, retriever):
 
     return rag_chain
 
-def get_session_history(store, session_id):
+# def get_session_history(store, session_id):
+#     if session_id not in store:
+#         store[session_id] = ChatMessageHistory()
+#     return store[session_id]
+
+def get_session_history(session_id: str) -> BaseChatMessageHistory:
     if session_id not in store:
         store[session_id] = ChatMessageHistory()
     return store[session_id]
@@ -160,7 +174,32 @@ def display_chat_history(history):
     for msg in history.messages:
         st.chat_message(msg.type).write(msg.content)
 
-def main():
+@st.cache_data(ttl=3600)
+def list_objects_in_bucket(NAMESPACE, pdf_bucket_name):
+    response = object_storage.list_objects(NAMESPACE, pdf_bucket_name)
+    return response.data.objects
+
+
+def create_preauthenticated_request(object_name, expiration_days=7):
+    par_details = oci.object_storage.models.CreatePreauthenticatedRequestDetails(
+        name=f"par_for_{object_name}",
+        object_name=object_name,
+        access_type='ObjectRead',
+        time_expires=datetime.utcnow() + timedelta(days=expiration_days)
+    )
+    response = object_storage.create_preauthenticated_request(
+        namespace_name=NAMESPACE,
+        bucket_name=pdf_bucket_name,
+        create_preauthenticated_request_details=par_details
+    )
+    par_url = f"https://objectstorage.{config['region']}.oraclecloud.com{response.data.access_uri}"
+    return par_url
+
+# Connect to SQLite database
+conn = sqlite3.connect(f'{DATABASE_NAME}.db')
+c = conn.cursor()
+
+def get_chatbot():    
     temperature  = st.sidebar.slider("Tempreture:", min_value=0.0, max_value=1.0, value=0.7, step=0.1)
     top_p = st.sidebar.slider("Top_p:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
     max_tokens = st.sidebar.slider("Max Tokens:", min_value=10, max_value=4000, value=512, step=1)
@@ -184,23 +223,19 @@ def main():
     vectorstore = create_vectorstore(docs)
     retriever = vectorstore.as_retriever()
 
-    history = StreamlitChatMessageHistory(key="chat_history")
+    history = StreamlitChatMessageHistory(key="history")
     memory = ConversationBufferMemory(chat_memory=history)
 
     rag_chain = create_chains(llm, retriever)
-    store = {}
+    
 
     conversational_rag_chain = RunnableWithMessageHistory(
         rag_chain,
-        lambda session_id: get_session_history(store, session_id),
+        get_session_history,
         input_messages_key="input",
-        history_messages_key="chat_history",
+        history_messages_key="history",
         output_messages_key="answer",
-    )
-
-    # Connect to SQLite database
-    conn = sqlite3.connect(f'{DATABASE_NAME}.db')
-    c = conn.cursor()
+    )    
 
     # Create a table to store chat messages if not exists
     c.execute(
@@ -209,48 +244,49 @@ def main():
     today = date.today()
     str_today = str(today)
 
+    display_chat_history(history)
 
+    # Input from the user
+    if prompt := st.chat_input():
+        st.chat_message("human").write_stream(response_generator(prompt))
+        
+
+        # Invoke the conversational RAG chain
+        response = conversational_rag_chain.invoke(
+            {"input": f"{prompt}"},
+            config={
+                "configurable": {"session_id": SESSION_ID}
+            },
+        )
+        # Update the history with the new human message
+        history.add_user_message(prompt)
+
+        # Update the history with the new AI response
+        history.add_ai_message(response["answer"])
+
+        # Display the AI response
+        st.chat_message("ai").write_stream(response_generator(response["answer"]))
+
+        # Save chat message to the database
+        c.execute(
+            f"INSERT INTO {DATABASE_NAME} (session_id, AI_message, Human_message, date_val) VALUES (?,?,?,?)",
+            (SESSION_ID, response["answer"],prompt, str_today))
+        conn.commit()
+
+
+def main():
     # Define session history and other tabs
-    tabs = ["Chatbot", "Session History"]
+    tabs = ["Chatbot", "Session History","Resume downloader"]
     selected_tab = st.sidebar.radio("Select Tab", tabs)
 
     # Display content based on selected tab
     if selected_tab == "Chatbot":
         # Display current chat history
         st.title("Welcome to Techment chatbot")
-
-        display_chat_history(history)
-
-        # Input from the user
-        if prompt := st.chat_input():
-            st.chat_message("human").write_stream(response_generator(prompt))
-            
-
-            # Invoke the conversational RAG chain
-            response = conversational_rag_chain.invoke(
-                {"input": f"{prompt}"},
-                config={
-                    "configurable": {"session_id": SESSION_ID}
-                },
-            )
-            # Update the history with the new human message
-            history.add_user_message(prompt)
-
-            # Update the history with the new AI response
-            history.add_ai_message(response["answer"])
-
-            # Display the AI response
-            st.chat_message("ai").write_stream(response_generator(response["answer"]))
-
-            # Save chat message to the database
-            c.execute(
-                f"INSERT INTO {DATABASE_NAME} (session_id, AI_message, Human_message, date_val) VALUES (?,?,?,?)",
-                (SESSION_ID, response["answer"],prompt, str_today))
-            conn.commit()
+        get_chatbot()        
 
     elif selected_tab == "Session History":
-        # Create a sidebar to display session history
-        st.sidebar.subheader("History")
+        # Create a sidebar to display session history        
         # session_history = st.sidebar.expander("Session History")
 
         # Display chat history from the database
@@ -275,6 +311,19 @@ def main():
         # st.write(all_data)
         # conn.close()
 
+    elif selected_tab == "Resume downloader":
+        st.title("Resume Downloader")
+        st.write("Fetching resumes from OCI Object Storage...")
+        objects = list_objects_in_bucket(NAMESPACE, pdf_bucket_name)       
+        resume_links = {}
+        for obj in objects:
+            if obj.name.endswith('.pdf'):  # Assuming resumes are in PDF format
+                par_url = create_preauthenticated_request(obj.name)
+                resume_links[obj.name] = par_url
+      
+        st.write("### Available Resumes")
+        for resume, link in resume_links.items():
+            st.write(f"[{resume}]({link})")
 if __name__ == "__main__":
     main()
 
