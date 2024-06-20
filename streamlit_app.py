@@ -141,9 +141,7 @@ def create_vectorstore(docs):
     return FAISS.from_documents(docs, embeddings)
 
 
-def few_shot_data(llm,examples):
-    # st.write(examples)
-    # print(examples)
+def few_shot_data(llm,examples):    
     example_formatter_template = """Question: {question}
                                 Answer: {answer}
                                 """
@@ -182,11 +180,8 @@ def few_shot_data(llm,examples):
 def create_chains(llm, retriever):    
     objects = list_objects_in_bucket(NAMESPACE, pdf_bucket_name)
     examples = get_example(objects)
-    print(examples)
-    examples_str = "\n".join([f"\n Q: {ex['input']} \n A: {ex['answer']}" for ex in examples])
-
-    st.write(examples_str)
-    st.write("examples",examples)
+    
+    examples_str = "\n".join([f"\n Q: {ex['input']} \n A: {ex['answer']}" for ex in examples])  
 
     example_prompt = (
         HumanMessagePromptTemplate.from_template("{input}")
@@ -236,9 +231,7 @@ def create_chains(llm, retriever):
     
     history_aware_retriever = create_history_aware_retriever(
         llm, retriever, contextualize_q_prompt,
-    )
-
-    print("history_aware_retriever created ")
+    )    
     
     system_prompt = (                
         """First you need to get the answers from few shot template
@@ -258,8 +251,8 @@ def create_chains(llm, retriever):
         ]
     )    
 
-    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)   
-    print("question_answer_chain",question_answer_chain)
+    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)  
+    
     rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
     return rag_chain
@@ -366,9 +359,7 @@ def get_chatbot():
             config={
                 "configurable": {"session_id": SESSION_ID}
             },
-        )
-
-        st.write("response",response)
+        )       
 
         # Update the history with the new human message
         history.add_user_message(prompt)
