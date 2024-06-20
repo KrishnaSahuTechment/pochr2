@@ -42,10 +42,10 @@ key_file = st.secrets["key_file"]
 tenancy = st.secrets["tenancy"] 
 region = st.secrets["region"] 
 
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] =  f"HR_POC_staging"
-os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
-os.environ["LANGCHAIN_API_KEY"] = "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"
+os.environ["LANGCHAIN_TRACING_V2"] = st.secrets["LANGCHAIN_TRACING_V2"]
+os.environ["LANGCHAIN_PROJECT"] =  st.secrets["LANGCHAIN_PROJECT"]
+os.environ["LANGCHAIN_ENDPOINT"] = st.secrets["LANGCHAIN_ENDPOINT"]
+os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 
 SESSION_ID = "abc12345"
 DATABASE_NAME = "chat_history_table_session"
