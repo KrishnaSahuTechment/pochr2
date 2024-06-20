@@ -4,9 +4,11 @@ import time
 import sqlite3
 from datetime import date
 from datetime import datetime, timedelta
+import os
 
 
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+from langchain.chains import LLMChain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.memory.buffer import ConversationBufferMemory
 from langchain import PromptTemplate, FewShotPromptTemplate
@@ -22,6 +24,10 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.prompts import HumanMessagePromptTemplate, AIMessagePromptTemplate
+from langchain_core.prompts.few_shot import FewShotChatMessagePromptTemplate
+from langchain_core.prompts.chat import ChatPromptTemplate
+
 import oci
 
 # Global Variables
@@ -36,11 +42,17 @@ key_file = st.secrets["key_file"]
 tenancy = st.secrets["tenancy"] 
 region = st.secrets["region"] 
 
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_PROJECT"] =  f"HR_POC_staging"
+os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
+os.environ["LANGCHAIN_API_KEY"] = "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"
+
 SESSION_ID = "abc12345"
 DATABASE_NAME = "chat_history_table_session"
 
 pdf_bucket_name = st.secrets["pdf_bucket_name"] #"demo_text_labeling"
-
+history = StreamlitChatMessageHistory(key="history")
+memory = ConversationBufferMemory(chat_memory=history)
 store = {}
 
 #set config file
@@ -75,6 +87,22 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
         raise e
 
     return llm  
+
+def get_example(objects):
+    examples = []
+    for obj in objects:
+        if obj.name.endswith('.pdf'):  # Assuming resumes are in PDF format
+            par_url = create_preauthenticated_request(obj.name)
+            examples.append({"input": f"What is the resume link of {obj.name}?","answer": f"You can view resume here: [{obj.name}]({par_url})"})
+            examples.append({"input": f"Can I get the link to {obj.name}? resume?", "answer": f"You can view resume here: [{obj.name}]({par_url})"})
+            examples.append({"input": f"Can you drop the link to {obj.name} resume?", "answer": f"You can view resume here: [{obj.name}]({par_url})"})
+            examples.append({"input": f"Can you please provide the link to  {obj.name} resume?", "answer": f"You can view resume here: [{obj.name}]({par_url})"})
+            examples.append({"input": f"Could you share {obj.name} resume link with me?","answer": f"You can view resume here: [{obj.name}]({par_url})"})
+            examples.append({"input": f"I'd like to see  {obj.name} resume. Can you provide the link?", "answer": f"You can view resume here:[{obj.name}]({par_url})"})
+            examples.append({"input": f"Would you be able to share {obj.name} resume link with me?","answer": f"You can view resume here: [{obj.name}]({par_url})"})
+            examples.append({"input": f"Would you be able to share {obj.name} resume link with me?","answer": f"You can view resume here:[{obj.name}]({par_url})"})
+    return examples
+
 
 def initialize_object_storage_client():
     try: 
@@ -112,42 +140,126 @@ def create_vectorstore(docs):
     )
     return FAISS.from_documents(docs, embeddings)
 
-def create_chains(llm, retriever):
+
+def few_shot_data(llm,examples):
+    # st.write(examples)
+    # print(examples)
+    example_formatter_template = """Question: {question}
+                                Answer: {answer}
+                                """
+
+    example_prompt = PromptTemplate(
+    input_variables=["question", "answer"],
+    template=example_formatter_template,
+        )
+    
+    few_shot_prompt = FewShotPromptTemplate(
+        # These are the examples we want to insert into the prompt.
+        examples=examples,
+        # This is how we want to format the examples when we insert them into the prompt.
+        example_prompt=example_prompt,
+        # The prefix is some text that goes before the examples in the prompt.
+        # Usually, this consists of intructions.
+        prefix="Give the answer of every input\n",
+        # The suffix is some text that goes after the examples in the prompt.
+        # Usually, this is where the user input will go
+        suffix="Question: {input}\nAnswer: ",
+        # The input variables are the variables that the overall prompt expects.
+        input_variables=["input"],
+        # The example_separator is the string we will use to join the prefix, examples, and suffix together with.
+        example_separator="\n",
+        )
+
+    chain=LLMChain(llm=llm,prompt=few_shot_prompt)
+    response = (chain({'input':"What is the resume link of Krishna Sahu?"}))
+    # st.write(response)
+    st.write(response["text"])
+
+    # st.markdown( response["text"])
+
+
+
+def create_chains(llm, retriever):    
+    objects = list_objects_in_bucket(NAMESPACE, pdf_bucket_name)
+    examples = get_example(objects)
+    print(examples)
+    examples_str = "\n".join([f"\n Q: {ex['input']} \n A: {ex['answer']}" for ex in examples])
+
+    st.write(examples_str)
+    st.write("examples",examples)
+
+    example_prompt = (
+        HumanMessagePromptTemplate.from_template("{input}")
+        + AIMessagePromptTemplate.from_template("{answer}")
+    )
+
+    few_shot_prompt = FewShotChatMessagePromptTemplate(
+        examples=examples,
+        example_prompt=example_prompt,
+    )
+
+    # chain=LLMChain(llm=llm,prompt=few_shot_prompt)
     contextualize_q_system_prompt = (
-        "Given a chat history and the latest user question "
-        "which might reference context in the chat history, "
-        "formulate a standalone question which can be understood "
-        "without the chat history. Do NOT answer the question, "
-        "just reformulate it if needed and otherwise return it as is."
+        f"""Your name is Wall-E,You are an assistant for question-answering tasks.You are an AI language model trained to provide precise answers based on given examples. Follow the format and style of the provided examples exactly. Do not add any additional information or deviate from the structure. Always ensure the answer is in the same format as shown in the examples. Do not modify the links provided in the examples. and also take examples which I provided to you
+        ### Examples:
+
+        Q: What is the resume link of Krishna Sahu.pdf?
+        A: You can view the resume here: [Krishna Sahu.pdf](https://objectstorage.us-chicago-1.oraclecloud.com/p/4IRwmMhlvWGXfti7Mxir5BvelyCSElCCjC4ICzqCHqgLsrpROqP8t1aK_uj8ZZVL/n/axbpjkug04ct/b/demo_text_labeling/o/Krishna%20Sahu.pdf)
+
+        Q: Can I get the link to Parul Paul.pdf? resume?
+        A: You can view resume here: [Parul Paul.pdf](https://objectstorage.us-chicago-1.oraclecloud.com/p/mOKtcBmHubbGGRXAFwUpLmIbwfChft-nGJru-77mQK-E4G1dNNtqi9rePD_DvhZC/n/axbpjkug04ct/b/demo_text_labeling/o/Parul%20Paul.pdf)
+
+        {examples_str}
+        
+        ### End of Examples
+
+        ### Instructions:
+
+        Based on the examples, provide the exact format of the answer for the given input question. Do not modify any links provided in the examples.
+        """
+        """
+
+        Input: {input}
+        Answer: 
+        """         
+            
     )
+
     contextualize_q_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", contextualize_q_system_prompt),
-            MessagesPlaceholder("history"),
-            ("human", "{input}"),
-        ]
-    )
+    [
+        ('system', contextualize_q_system_prompt),
+        few_shot_prompt,        
+        ('human', '{input}'),
+        ("ai", '{answer}'),
+    ]
+    )    
+    
     history_aware_retriever = create_history_aware_retriever(
         llm, retriever, contextualize_q_prompt,
     )
 
-    system_prompt = (
-        "Your name is Wall-E,You are an assistant for question-answering tasks. "
-        "Use the following pieces of retrieved context to answer "
-        "the question. If you don't know the answer, say that you "
-        "don't know. Use three sentences maximum and keep the "
-        "answer concise."
-        "\n\n"
-        "{context}"
+    print("history_aware_retriever created ")
+    
+    system_prompt = (                
+        """First you need to get the answers from few shot template
+        if answer is not available to few shot shot template then
+        you can also use the following pieces of retrieved context to answer
+        the question.     
+        \n\n
+        {context}
+        """       
     )
     qa_prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system_prompt),
+            few_shot_prompt, 
             MessagesPlaceholder("history"),
-            ("human", "{input}"),
+            ("human", "{input}"),           
         ]
-    )
-    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+    )    
+
+    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)   
+    print("question_answer_chain",question_answer_chain)
     rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
     return rag_chain
@@ -221,13 +333,10 @@ def get_chatbot():
     docs = text_splitter.split_documents(documents)      
 
     vectorstore = create_vectorstore(docs)
-    retriever = vectorstore.as_retriever()
-
-    history = StreamlitChatMessageHistory(key="history")
-    memory = ConversationBufferMemory(chat_memory=history)
+    retriever = vectorstore.as_retriever()  
 
     rag_chain = create_chains(llm, retriever)
-    
+    # few_shot_data(llm,examples)
 
     conversational_rag_chain = RunnableWithMessageHistory(
         rag_chain,
@@ -258,6 +367,9 @@ def get_chatbot():
                 "configurable": {"session_id": SESSION_ID}
             },
         )
+
+        st.write("response",response)
+
         # Update the history with the new human message
         history.add_user_message(prompt)
 
