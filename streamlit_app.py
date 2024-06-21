@@ -369,7 +369,7 @@ conn = sqlite3.connect(f'{DATABASE_NAME}.db')
 c = conn.cursor()
 
 def get_chatbot():    
-    temperature  = st.sidebar.slider("Tempreture:", min_value=0.0, max_value=1.0, value=0.7, step=0.1)
+    temperature  = st.sidebar.slider("Tempreture:", min_value=0.0, max_value=1.0, value=0, step=0.1)
     top_p = st.sidebar.slider("Top_p:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
     max_tokens = st.sidebar.slider("Max Tokens:", min_value=10, max_value=4000, value=512, step=1)
     top_k = st.sidebar.slider("Top_k:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
