@@ -5,6 +5,7 @@ import sqlite3
 from datetime import date
 from datetime import datetime, timedelta
 import os
+import PyPDF2 as pdf
 
 
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
@@ -364,15 +365,58 @@ def create_preauthenticated_request(object_name, expiration_days=7):
     par_url = f"https://objectstorage.{config['region']}.oraclecloud.com{response.data.access_uri}"
     return par_url
 
+def get_model_response(llm, text, jd):
+    template = """
+    Act like a skilled or very experienced ATS (Application Tracking System)
+    with a deep understanding of the tech field, software engineering, data science, data analysis,
+    and big data engineering. Your task is to evaluate the resume based on the given job description.
+    You must consider the job market is very competitive and you should provide
+    the best assistance for improving the resumes. Assign the percentage Matching based
+    on Job description and the missing keywords with high accuracy
+    resume: {resume}
+    description: {description}
+
+    I want the response in one single string having the structure:
+    Job description Match: %,
+
+    \n\n
+    **MissingKeywords:**[,],
+
+    \n\n
+    **Profile Summary:** "in bullet points"
+    """
+
+    prompt = PromptTemplate.from_template(template)
+    chain = LLMChain(llm=llm, prompt=prompt)
+    response = chain.invoke({"resume": text, "description": jd})
+    return response
+
+def input_pdf_text(uploaded_file):
+    reader = pdf.PdfReader(uploaded_file)
+    text = ""
+
+    for page in range(len(reader.pages)):
+        page = reader.pages[page]
+        text += str(page.extract_text()) + "\n"
+
+    return text
+
+
 # Connect to SQLite database
 conn = sqlite3.connect(f'{DATABASE_NAME}.db')
 c = conn.cursor()
 
 def get_chatbot():    
-    temperature  = st.sidebar.slider("Tempreture:", min_value=0.0, max_value=1.0, value=0.0, step=0.1)
-    top_p = st.sidebar.slider("Top_p:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
-    max_tokens = st.sidebar.slider("Max Tokens:", min_value=10, max_value=4000, value=512, step=1)
-    top_k = st.sidebar.slider("Top_k:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
+    with st.container():
+        col1, col2, col3,col4 = st.columns(4)
+        with col1:
+            temperature  = st.slider("Tempreture:", min_value=0.0, max_value=1.0, value=0.0, step=0.1)
+        with col2:
+            top_p = st.slider("Top_p:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
+        with col3:
+            max_tokens = st.slider("Max Tokens:", min_value=10, max_value=4000, value=512, step=1)    
+        with col4:
+            top_k = st.slider("Top_k:", min_value=0.00, max_value=1.00, value=0.00, step=0.01)
     
     llm = initialize_llm(temperature,top_p,top_k,max_tokens)
     object_storage_client = initialize_object_storage_client()
@@ -443,13 +487,13 @@ def get_chatbot():
 
 def main():
     # Define session history and other tabs
-    tabs = ["Chatbot", "Session History","Resume downloader"]
+    tabs = ["Chatbot", "Session History","Smart ATS","Resume downloader"]
     selected_tab = st.sidebar.radio("Select Tab", tabs)
 
     # Display content based on selected tab
     if selected_tab == "Chatbot":
         # Display current chat history
-        st.title("Welcome to Techment chatbot")
+        st.subheader("Welcome to Techment chatbot")
         get_chatbot()        
 
     elif selected_tab == "Session History":
@@ -491,6 +535,23 @@ def main():
         st.write("### Available Resumes")
         for resume, link in resume_links.items():
             st.write(f"[{resume}]({link})")
+
+
+    elif selected_tab =="Smart ATS":
+        st.title("Smart ATS")
+        st.text("Compare Resume with Job description")
+        jd = st.text_area("Paste the Job Description")
+        uploaded_file = st.file_uploader("Upload Your Resume", type="pdf", help="Please upload the pdf")
+
+        submit = st.button("Submit")
+
+        if submit:
+            if uploaded_file is not None:
+                llm = initialize_llm()
+                text = input_pdf_text(uploaded_file)
+                response = get_model_response(llm, text, jd)
+                st.subheader("Response")
+                st.write(response["text"])
 if __name__ == "__main__":
     main()
 
