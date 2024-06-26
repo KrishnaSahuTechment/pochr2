@@ -12,7 +12,7 @@ from langchain.chains import create_history_aware_retriever, create_retrieval_ch
 from langchain.chains import LLMChain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.memory.buffer import ConversationBufferMemory
-from langchain import PromptTemplate, FewShotPromptTemplate
+# from langchain import PromptTemplate, FewShotPromptTemplate
 
 from langchain_community.llms import OCIGenAI
 from langchain_community.embeddings import OCIGenAIEmbeddings
@@ -28,6 +28,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.prompts import HumanMessagePromptTemplate, AIMessagePromptTemplate
 from langchain_core.prompts.few_shot import FewShotChatMessagePromptTemplate
 from langchain_core.prompts.chat import ChatPromptTemplate
+from langchain_core.prompts import PromptTemplate,FewShotPromptTemplate
 
 import oci
 
