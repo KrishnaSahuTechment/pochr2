@@ -372,7 +372,8 @@ def get_model_response(llm, text, jd):
     and big data engineering. Your task is to evaluate the resume based on the given job description.
     You must consider the job market is very competitive and you should provide
     the best assistance for improving the resumes. Assign the percentage Matching based
-    on Job description and the missing keywords with high accuracy
+    on Job description and the missing keywords in resume by comparing job description with high accuracy also give the matching keywords with high accuracy 
+    and also give the reason for the percentage match in bullet points with higer accuracy
     resume: {resume}
     description: {description}
 
@@ -380,10 +381,16 @@ def get_model_response(llm, text, jd):
     Job description Match: %,
 
     \n\n
-    **MissingKeywords:**[,],
+    **Matching Keywords:**[,],
+
+    \n\n
+    **Missing Keywords:**[,],
 
     \n\n
     **Profile Summary:** "in bullet points"
+
+    \n\n
+    **Reason for percentage match:** "in bullet points"
     """
 
     prompt = PromptTemplate.from_template(template)
@@ -538,7 +545,7 @@ def main():
 
 
     elif selected_tab =="Smart ATS":
-        st.title("Smart ATS")
+        st.title("Smart Application Tracking System")
         st.text("Compare Resume with Job description")
         jd = st.text_area("Paste the Job Description")
         uploaded_file = st.file_uploader("Upload Your Resume", type="pdf", help="Please upload the pdf")
@@ -547,7 +554,7 @@ def main():
 
         if submit:
             if uploaded_file is not None:
-                llm = initialize_llm()
+                llm = initialize_llm(temperature=0, max_tokens=2000)
                 text = input_pdf_text(uploaded_file)
                 response = get_model_response(llm, text, jd)
                 st.subheader("Response")
