@@ -548,7 +548,7 @@ def main():
     elif selected_tab =="Smart ATS":
         st.title("Smart Application Tracking System")
         st.text("Compare Resume with Job description")
-        jd = st.text_area("Paste the Job Description")
+        jd = st.text_area("Paste the Job Description",height = 200)
         uploaded_file = st.file_uploader("Upload Your Resume", type="pdf", help="Please upload the pdf")
 
         submit = st.button("Submit")
