@@ -68,7 +68,7 @@ config = {
 
 object_storage = oci.object_storage.ObjectStorageClient(config)
 
-def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
+def initialize_llm(temperature=0.0,top_p=0,top_k=0,max_tokens=200):
     print(f"Temperature: {temperature}")
     print(f"Top_p: {top_p}")
     print(f"Top_k: {top_k}")
@@ -80,7 +80,7 @@ def initialize_llm(temperature=0.75,top_p=0,top_k=0,max_tokens=200):
             model_id="cohere.command",
             service_endpoint="https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
             compartment_id=COMPARTMENT_ID,
-            model_kwargs={"temperature": temperature, "top_p": top_p, "top_k": top_k, "max_tokens": max_tokens},     
+            model_kwargs={"temperature": 0.0, "top_p": top_p, "top_k": top_k, "max_tokens": max_tokens},     
             client=client
         )
         print("LLM initialized successfully")
@@ -555,7 +555,7 @@ def main():
 
         if submit:
             if uploaded_file is not None:
-                llm = initialize_llm(temperature=0, max_tokens=2000)
+                llm = initialize_llm(0, max_tokens=2000)
                 text = input_pdf_text(uploaded_file)
                 response = get_model_response(llm, text, jd)
                 st.subheader("Response")
