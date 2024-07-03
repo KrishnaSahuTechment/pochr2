@@ -549,17 +549,27 @@ def main():
         st.title("Smart Application Tracking System")
         st.text("Compare Resume with Job description")
         jd = st.text_area("Paste the Job Description",height = 200)
-        uploaded_file = st.file_uploader("Upload Your Resume", type="pdf", help="Please upload the pdf")
-
+        # uploaded_file = st.file_uploader("Upload Your Resume", type="pdf", help="Please upload the pdf")
+        uploaded_files = st.file_uploader("Upload Your Resumes", type="pdf", accept_multiple_files=True, help="Please upload the pdf files")
         submit = st.button("Submit")
 
+        # if submit:
+        #     if uploaded_file is not None:
+        #         llm = initialize_llm(0, max_tokens=2000)
+        #         text = input_pdf_text(uploaded_file)
+        #         response = get_model_response(llm, text, jd)
+        #         st.subheader("Response")
+        #         st.write(response["text"])
+
         if submit:
-            if uploaded_file is not None:
-                llm = initialize_llm(0, max_tokens=2000)
-                text = input_pdf_text(uploaded_file)
-                response = get_model_response(llm, text, jd)
-                st.subheader("Response")
-                st.write(response["text"])
+            if uploaded_files is not None:
+                llm = initialize_llm(temperature=0)
+                for uploaded_file in uploaded_files:
+                    text = input_pdf_text(uploaded_file)
+                    response = get_model_response(llm, text, jd)
+                    with st.expander(f"Response for {uploaded_file.name}"):            
+                        st.subheader(f"Response for {uploaded_file.name}")
+                        st.write(response["text"])
 if __name__ == "__main__":
     main()
 
