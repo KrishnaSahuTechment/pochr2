@@ -372,14 +372,19 @@ def get_model_response(llm, text, jd):
     with a deep understanding of the tech field, software engineering, data science, data analysis,
     and big data engineering. Your task is to evaluate the resume based on the given job description.
     You must consider the job market is very competitive and you should provide
-    the best assistance for improving the resumes. Assign the percentage Matching based
+    the best assistance for selecting the resume. Assign the percentage Matching based
     on Job description and the missing keywords in resume by comparing job description with high accuracy also give the matching keywords with high accuracy 
-    and also give the reason for the percentage match in bullet points with higer accuracy
+    and also give the reason for the percentage match in bullet points with higher accuracy.
+    also Match the job titile with high accuracy.
+    If any job profile resume is not matching with the job description then simply say not matching the job description 
     resume: {resume}
     description: {description}
 
     I want the response in one single string having the structure:
     Job description Match: %,
+
+    \n\n
+    **Job Title Match:"",
 
     \n\n
     **Matching Keywords:**[,],
