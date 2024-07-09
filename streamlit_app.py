@@ -3,8 +3,9 @@ import json
 import time
 import sqlite3
 from datetime import date
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 import os
+import base64
 import PyPDF2 as pdf
 
 
@@ -356,7 +357,7 @@ def create_preauthenticated_request(object_name, expiration_days=7):
         name=f"par_for_{object_name}",
         object_name=object_name,
         access_type='ObjectRead',
-        time_expires=datetime.utcnow() + timedelta(days=expiration_days)
+        time_expires=datetime.now(timezone.utc) + timedelta(days=expiration_days)
     )
     response = object_storage.create_preauthenticated_request(
         namespace_name=NAMESPACE,
